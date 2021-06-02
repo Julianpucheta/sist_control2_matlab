@@ -2,6 +2,7 @@
 *.slx
 *.xls
 *.mat
+*.asv
 codigo_para_simulacion/html/
 cod_para_ejercicios.m
 prueba.m
