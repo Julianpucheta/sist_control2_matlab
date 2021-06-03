@@ -1,6 +1,9 @@
 clc;clear all;%close all;
-T=.5; At=1e-6;Ts=1e-5;Kmax=T/At;tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
-Laa=366e-6;J=5e-9;Ra=55.6;Bm=0;Ki=6.49e-3;Km=6.53e-3;Va=12;TlRef=0;%1.15e-6;
+%_________Tiempos__________________________________
+T=.5;At=1e-6;Ts=1e-5;Kmax=T/At;tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
+%_________Variables________________________________
+Laa=366e-6;J=5e-9;Ra=55.6;Bm=0;Ki=6.49e-3;Km=6.53e-3;Va=12;
+TlRef=1.15e-5;
 thetaRef=pi/2;
 Ac = [-Ra/Laa -Km/Laa 0;
      Ki/J   -Bm/J    0;
@@ -9,7 +12,6 @@ Ac = [-Ra/Laa -Km/Laa 0;
 %     0;
 %     0];
 Bc = [1/Laa 0;0 -1/J;0 0]; %considerando el torque
-
 C = [0 0 1];              %salida posicion
 D = [0 0];                
 % Baux=B(:,1);               %como no me interesa controlar el torque no lo tomo en la matriz B
@@ -21,15 +23,18 @@ tranF=tf(num,den);
 A = sys_d.A;
 B = sys_d.B;
 Baux=B(:,1);
-% %________Construccion del sist. ampliado_________
-% Aa = [A zeros(3,1);-C 0];
-% Ba = [Baux; 0];
-% Ma = [Ba Aa*Ba Aa^2*Ba Aa^3*Ba];    %al agregar otro integrador(variable de estado) ahora el n = 4
-% rank(Ma)                            %chequea el rango de la matris M, tiene que ser 4
-%Consultar por que el rango de la matriz Ma es 2
+%{
+% ________Construccion del sist. ampliado_________
+ Aa = [A zeros(3,1);-C 0];
+ Ba = [Baux; 0];
+ Ma = [Ba Aa*Ba Aa^2*Ba Aa^3*Ba];    %al agregar otro integrador(variable de estado) ahora el n = 4
+ rank(Ma)                            %chequea el rango de la matris M, tiene que ser 4
+Consultar por que el rango de la matriz Ma es 2
+%}
 %_________Controlador_______________________________________
+%{
 % M = [B A*B A^2*B];                %matriz de controlabilidad 
-M = [Baux A*Baux A^2*Baux];       %matriz de controlabilidad cuando influje el torque
+M = [Baux A*Baux A^2*Baux];         %matriz de controlabilidad cuando influje el torque
 disp('Rango Matriz M: ')
 rank(M)
 polyCaracDeA = poly(A);
@@ -38,6 +43,7 @@ W = [polyCaracDeA(3) polyCaracDeA(2) 1;
                  1                0  0];
 T = M * W;
 A_controlable = inv(T) * A * T; %cheque que la matriz A este expresa en su forma controlable
+%}
 %_________ubicacion de los polos a lazo cerrado_____________
 disp('Polos a lazo abierto: ')
 eig(A)                    %polos a lazo abierto, estos son los polos que puedo mover
@@ -63,16 +69,18 @@ R = 1;
 [Ko,Po] = dlqr(Ao,Bo,Q,R);
 disp('Polos del observador')
 eig(A-Ko'*C)
-%__________Iteracion________________________________________
-ia(1)=0;theta(1)=0;omega(1)=0;wp(1)=0;
-ial(1)=0;thetal(1)=0;omegal(1)=0;wpl(1)=0;ref(1)=thetaRef;
+%__________Variables de salida________________________________________
+ia=zeros(1,int32(Kmax*(Ts/At)+1));wp=zeros(1,int32(Kmax*(Ts/At)+1));
+theta=zeros(1,int32(Kmax*(Ts/At)+1));omega=zeros(1,int32(Kmax*(Ts/At)+1));
+ial=zeros(1,int32(Kmax+1));wpl=zeros(1,int32(Kmax+1));
+thetal=zeros(1,int32(Kmax+1));omegal=zeros(1,int32(Kmax+1));
+ref=zeros(1,int32(Kmax+1));
+u=zeros(1,int32(Kmax*(Ts/At)+1));uk=zeros(1,int32(Kmax+1));
+%__________Inicializacion____________________________________________
 Xop=[0 0 0]';x=[ial(1) omegal(1) thetal(1)]';
 xo=[0 0 0]'; %inicializacion para el observador
-estados=[ial(1);omegal(1);thetal(1)];
-ii=0;
-flag=0;
-Tl=TlRef;
-u(1)=0;
+estados=[ia(1);omega(1);theta(1)];
+ii=0;flag=0;Tl=TlRef;ref(1)=thetaRef;
 ul(2,:)=0; %con torque
 jj=1;
 for i=1:Kmax
@@ -88,26 +96,31 @@ for i=1:Kmax
         end
         ii=0;
     end
-    ref(i)=thetaRef;
-%     estados=[ia(i);omega(i);theta(i)];
-    ul(:,i) = [-K*estados+G*ref(i);Tl];
+    ref(i)=thetaRef;  
+    ul(:,i) = [-K*x+G*ref(i);Tl]; %accion de control lineal
+    uk(i) = -K*estados+G*ref(i);  %accion de control no linal
 %     u(i) = -K*estados+G*ref(i); %sin Observador
     %u(i) = -K*xo+G*ref(i); %con Observador
-    %u(i) = Va;
     if(ul(1,i)>20)
         ul(1,i) = 20;
     elseif(ul(1,i)<-20)
         ul(1,i) = -20;
     end
+    if(uk(i)>20)
+        uk(i) = 20;
+    elseif(uk(i)<-20)
+        uk(i) = -20;
+    end
     for j=1:Ts/At
         %_________________sistema no lineal____________________________
-        u(jj)=ul(1,i);
+        u(jj)=uk(i);
         wpp =(-wp(jj)*(Ra*J+Laa*Bm)-omega(jj)*(Ra*Bm+Ki*Km)+u(jj)*Ki)/(J*Laa);
         iap=(-Ra*ia(jj)-Km*omega(jj)+u(jj))/Laa;
         wp(jj+1) =  wp(jj) + wpp*At -((1/J)*Tl);
         ia(jj+1)=ia(jj)+iap*At;
         omega(jj+1) = omega(jj) + wp(jj)*At;
         theta(jj+1)=theta(jj)+omega(jj)*At;
+        estados=[ia(jj);omega(jj);theta(jj)];
         jj=jj+1;
     end
      %________________sistema lineal_______________________________
@@ -123,13 +136,13 @@ for i=1:Kmax
 %     y_sal(i)   = C * estados;
 %     x_antp     = A*xo+B*u(i)+Ko*(y_sal(i)-y_sal_o(i));
 %     xo         = xo + x_antp*At;
-    estados=[ial(i);omegal(i);thetal(i)];
 end
 %ia(i+1) = x(1);wp(i+1)=x(2);theta(i+1)=x(3);
 ul(:,i+1)=ul(:,i);
 ul = ul(1,:);
 u(jj)=u(jj-1);
 ref(i+1) = ref(i);
+%__________Plot____________________________________________________
 figure(1);
 subplot(2,2,1);
 plot(tl,ial);hold on;plot(t,ia);hold on;
