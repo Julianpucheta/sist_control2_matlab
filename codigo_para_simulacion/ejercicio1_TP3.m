@@ -1,17 +1,21 @@
 clc;clear all;%close all;
 %_________Tiempos__________________________________
-T=.5;At=1e-6;Ts=1e-5;Kmax=T/At;tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
+T=.9;At=1e-6;Ts=1e-5;Kmax=T/At;
+tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
 %_________Variables________________________________
 Laa=366e-6;J=5e-9;Ra=55.6;Bm=0;Ki=6.49e-3;Km=6.53e-3;Va=12;
 TlRef=1.15e-5;
 thetaRef=pi/2;
+%_________Matrices_________________________________
 Ac = [-Ra/Laa -Km/Laa 0;
      Ki/J   -Bm/J    0;
      0         1     0];
 % B = [1/Laa;
 %     0;
 %     0];
-Bc = [1/Laa 0;0 -1/J;0 0]; %considerando el torque
+Bc = [1/Laa 0;
+      0   -1/J;
+      0     0]; %considerando el torque
 C = [0 0 1];              %salida posicion
 D = [0 0];                
 % Baux=B(:,1);               %como no me interesa controlar el torque no lo tomo en la matriz B
@@ -50,6 +54,7 @@ eig(A)                    %polos a lazo abierto, estos son los polos que puedo m
 % d = [1 .0001 1000];     %sin discretizar
 % R = 1;
 d=[1 .1 100];
+% d=[1 1 1];
 Q = diag(d);
 R = 1;
 [K,P] = dlqr(A,Baux,Q,R);
@@ -76,10 +81,11 @@ ial=zeros(1,int32(Kmax+1));wpl=zeros(1,int32(Kmax+1));
 thetal=zeros(1,int32(Kmax+1));omegal=zeros(1,int32(Kmax+1));
 ref=zeros(1,int32(Kmax+1));
 u=zeros(1,int32(Kmax*(Ts/At)+1));uk=zeros(1,int32(Kmax+1));
+y_sall=zeros(1,int32(Kmax+1));y_sal=zeros(1,int32(Kmax+1));
+% y_sal_ol=zeros(1,int32(Kmax+1));y_sal_o=zeros(1,int32(Kmax+1));
 %__________Inicializacion____________________________________________
-Xop=[0 0 0]';x=[ial(1) omegal(1) thetal(1)]';
-xo=[0 0 0]'; %inicializacion para el observador
-estados=[ia(1);omega(1);theta(1)];
+Xop=[0 0 0]';x=[ial(1) omegal(1) thetal(1)]';estados=[ia(1);omega(1);theta(1)];
+xol=[0 0 0]';xo=[0 0 0]'; %inicializacion para el observador
 ii=0;flag=0;Tl=TlRef;ref(1)=thetaRef;
 ul(2,:)=0; %con torque
 jj=1;
@@ -97,10 +103,11 @@ for i=1:Kmax
         ii=0;
     end
     ref(i)=thetaRef;  
-    ul(:,i) = [-K*x+G*ref(i);Tl]; %accion de control lineal
-    uk(i) = -K*estados+G*ref(i);  %accion de control no linal
-%     u(i) = -K*estados+G*ref(i); %sin Observador
-    %u(i) = -K*xo+G*ref(i); %con Observador
+%     ul(:,i) = [-K*x+G*ref(i);Tl]; %accion de control lineal
+    ul(:,i) = [-K*xol+G*ref(i);Tl]; %con Observador
+%     uk(i) = -K*estados+G*ref(i);  %accion de control no linal
+    uk(i) = -K*xo+G*ref(i); %sin Observador
+    
     if(ul(1,i)>20)
         ul(1,i) = 20;
     elseif(ul(1,i)<-20)
@@ -111,8 +118,9 @@ for i=1:Kmax
     elseif(uk(i)<-20)
         uk(i) = -20;
     end
+    %_________________sistema no lineal____________________________
+    y_sal(i)=C*estados;
     for j=1:Ts/At
-        %_________________sistema no lineal____________________________
         u(jj)=uk(i);
         wpp =(-wp(jj)*(Ra*J+Laa*Bm)-omega(jj)*(Ra*Bm+Ki*Km)+u(jj)*Ki)/(J*Laa);
         iap=(-Ra*ia(jj)-Km*omega(jj)+u(jj))/Laa;
@@ -123,19 +131,16 @@ for i=1:Kmax
         estados=[ia(jj);omega(jj);theta(jj)];
         jj=jj+1;
     end
-     %________________sistema lineal_______________________________
-%     xp        = A*(x-Xop)+B*u(:,i);
-%     x         = x+xp*At;
-%     Y         = C*x+D*u(:,i);
+    %_________________observador con estodos no lineal___________________________________
+    xo         = A*xo+B*ul(:,i)+Ko'*(y_sal(i)-C * xo);
+    %________________sistema lineal discretizado____________________________
+    y_sall(i)   = C * x;         %tomo la medicion de la salida 
     x = A*(x-Xop)+B*ul(:,i);
     ial(i+1)     = x(1);
     omegal(i+1)  = x(2);
     thetal(i+1)  = x(3);
-    %_________________observador___________________________________
-%     y_sal_o(i) = C * xo;
-%     y_sal(i)   = C * estados;
-%     x_antp     = A*xo+B*u(i)+Ko*(y_sal(i)-y_sal_o(i));
-%     xo         = xo + x_antp*At;
+    %_________________observador discreto___________________________________
+    xol         = A*xol+B*ul(:,i)+Ko'*(y_sall(i)-C * xol);
 end
 %ia(i+1) = x(1);wp(i+1)=x(2);theta(i+1)=x(3);
 ul(:,i+1)=ul(:,i);
@@ -154,15 +159,16 @@ grid on;
 title('Accion de control');
 subplot(2,2,3:4);
 plot(tl,thetal);hold on;plot(t,theta);hold on;
-plot(tl,ref);
+plot(tl,ref,'r--');
 grid on;
 title('\theta_t');
-% legend('sin obsevador', 'con obsevador');
+legend('Lineal Discretizado', 'No lineal','Referencia');
 % subplot(2,1,2)
-% plot(t,omega);grid on;title('\omega_t');
+% plot(t,omega);grid on;t   itle('\omega_t');
 figure(2)
 plot(thetal,omegal);hold on;plot(theta,omega);hold on;
 grid on;
 xlabel('angulo');ylabel('Velocidad angular');
 title('diagrama de fase');
+legend('Lineal Discretizado', 'No lineal');
 %legend('sin obsevador', 'con obsevador');
