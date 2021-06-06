@@ -4,8 +4,10 @@ T=.9;At=1e-6;Ts=1e-5;Kmax=T/At;
 tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
 %_________Variables________________________________
 Laa=366e-6;J=5e-9;Ra=55.6;Bm=0;Ki=6.49e-3;Km=6.53e-3;Va=12;
-TlRef=1.15e-5;
+TlRef=0;%1.15e-5;
 thetaRef=pi/2;
+zonaMuerta=1;
+saturacion=20;
 %_________Matrices_________________________________
 Ac = [-Ra/Laa -Km/Laa 0;
      Ki/J   -Bm/J    0;
@@ -16,7 +18,7 @@ Ac = [-Ra/Laa -Km/Laa 0;
 Bc = [1/Laa 0;
       0   -1/J;
       0     0]; %considerando el torque
-C = [0 0 1];              %salida posicion
+C = [0 0 1];                 %salida posicion
 D = [0 0];                
 % Baux=B(:,1);               %como no me interesa controlar el torque no lo tomo en la matriz B
 %__________Discretizacion__________________________
@@ -68,9 +70,9 @@ Bo=C';
 Co=Baux';
 % MDual=[Bo Ao*Bo Ao^2*Bo]; %matriz de controlabilidad del observador
 % To=MDual*W;
-d = [1 1 1];
+d = [.1 .1 10];
 Q = diag(d);
-R = 1;
+R = .1;
 [Ko,Po] = dlqr(Ao,Bo,Q,R);
 disp('Polos del observador')
 eig(A-Ko'*C)
@@ -103,21 +105,29 @@ for i=1:Kmax
         ii=0;
     end
     ref(i)=thetaRef;  
-%     ul(:,i) = [-K*x+G*ref(i);Tl]; %accion de control lineal
-    ul(:,i) = [-K*xol+G*ref(i);Tl]; %con Observador
-%     uk(i) = -K*estados+G*ref(i);  %accion de control no linal
-    uk(i) = -K*xo+G*ref(i); %sin Observador
+    ul(:,i) = [-K*x+G*ref(i);Tl]; %accion de control lineal
+%     ul(:,i) = [-K*xol+G*ref(i);Tl]; %con Observador
+    uk(i) = -K*estados+G*ref(i);  %accion de control no linal
+%     uk(i) = -K*xo+G*ref(i); %sin Observador
+% {
+    if(ul(1,i)<-zonaMuerta)
+        ul(1,i)=ul(1,i)+zonaMuerta;
+    elseif (ul(1,i)>= zonaMuerta)
+        ul(1,i)=ul(1,i)-zonaMuerta;
+    else
+        ul(1,i)=0;
+    end
     
-    if(ul(1,i)>20)
-        ul(1,i) = 20;
-    elseif(ul(1,i)<-20)
-        ul(1,i) = -20;
+    if(uk(i)<-zonaMuerta)
+        uk(i)=uk(i)+zonaMuerta;
+    elseif (uk(i)>= zonaMuerta)
+        uk(i)=uk(i)-zonaMuerta;
+    else
+        uk(i)=0;
     end
-    if(uk(i)>20)
-        uk(i) = 20;
-    elseif(uk(i)<-20)
-        uk(i) = -20;
-    end
+%}
+    ul(1,i)= min(saturacion,max(-saturacion,ul(1,i))); 
+    uk(i)  = min(saturacion,max(-saturacion,uk(i)));
     %_________________sistema no lineal____________________________
     y_sal(i)=C*estados;
     for j=1:Ts/At
@@ -131,15 +141,15 @@ for i=1:Kmax
         estados=[ia(jj);omega(jj);theta(jj)];
         jj=jj+1;
     end
-    %_________________observador con estodos no lineal___________________________________
+    %_________________observador con estados no lineal_____________________
     xo         = A*xo+B*ul(:,i)+Ko'*(y_sal(i)-C * xo);
-    %________________sistema lineal discretizado____________________________
+    %________________sistema lineal discretizado___________________________
     y_sall(i)   = C * x;         %tomo la medicion de la salida 
     x = A*(x-Xop)+B*ul(:,i);
     ial(i+1)     = x(1);
     omegal(i+1)  = x(2);
     thetal(i+1)  = x(3);
-    %_________________observador discreto___________________________________
+    %_________________observador discreto__________________________________
     xol         = A*xol+B*ul(:,i)+Ko'*(y_sall(i)-C * xol);
 end
 %ia(i+1) = x(1);wp(i+1)=x(2);theta(i+1)=x(3);
@@ -172,3 +182,33 @@ xlabel('angulo');ylabel('Velocidad angular');
 title('diagrama de fase');
 legend('Lineal Discretizado', 'No lineal');
 %legend('sin obsevador', 'con obsevador');
+%{
+clear all;
+h=1000;
+t=linspace(-25,25,h);
+% input=linspace(-40,40,h);
+zonaMuerta=.5;
+saturacion=20;
+Nl=deadzone('ZeroInterval',[-zonaMuerta,zonaMuerta]);
+St=saturation('LinearInterval',[-saturacion,saturacion]);
+ii(1)=0;
+for i=1:length(t)
+    ii(i)=evaluate(Nl,t(i));
+    ii(i)=evaluate(St,ii(i));
+%{
+ % mas rapido implementarlo de esta forma
+    if(t(i)<-zonaMuerta)
+        ii(i)=t(i)+zonaMuerta;
+    elseif (t(i)>= zonaMuerta)
+        ii(i)=t(i)-zonaMuerta;
+    else
+        ii(i)=0;
+    end 
+    ii(i)  = min(saturacion,max(-saturacion,ii(i)));
+%} 
+end
+figure(1)
+plot(t,ii);
+grid on;
+title('Accion de control No lineal');xlabel('input');ylabel('output');
+%}
