@@ -35,7 +35,8 @@ Baux=B(:,1);
  Ba = [Baux; 0];
  Ma = [Ba Aa*Ba Aa^2*Ba Aa^3*Ba];    %al agregar otro integrador(variable de estado) ahora el n = 4
  rank(Ma)                            %chequea el rango de la matris M, tiene que ser 4
-Consultar por que el rango de la matriz Ma es 2
+Consultar por que el rango de la matriz Ma es 2, estan mal armadas las
+matrices ampliadas para tiempo continuo son distintas
 %}
 %_________Controlador_______________________________________
 %{
