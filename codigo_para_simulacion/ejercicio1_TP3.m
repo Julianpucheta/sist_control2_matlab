@@ -1,10 +1,10 @@
 clc;clear all;%close all;
 %_________Tiempos__________________________________
-T=.9;At=1e-6;Ts=1e-5;Kmax=T/At;
+T=.7;At=1e-6;Ts=1e-5;Kmax=T/At;
 tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
 %_________Variables________________________________
 Laa=366e-6;J=5e-9;Ra=55.6;Bm=0;Ki=6.49e-3;Km=6.53e-3;Va=12;
-TlRef=0;%1.15e-5;
+TlRef=1.15e-5;
 thetaRef=pi/2;
 zonaMuerta=1;
 saturacion=20;
@@ -20,7 +20,7 @@ Bc = [1/Laa 0;
       0     0]; %considerando el torque
 C = [0 0 1];                 %salida posicion
 D = [0 0];                
-% Baux=B(:,1);               %como no me interesa controlar el torque no lo tomo en la matriz B
+% Baux=B(:,1);               
 %__________Discretizacion__________________________
 sys_c=ss(Ac,Bc,C,D);
 sys_d=c2d(sys_c,Ts,'zoh');
@@ -28,7 +28,7 @@ sys_d=c2d(sys_c,Ts,'zoh');
 tranF=tf(num,den);
 A = sys_d.A;
 B = sys_d.B;
-Baux=B(:,1);
+Baux=B(:,1); %como no me interesa controlar el torque no lo tomo en la matriz B
 %{
 % ________Construccion del sist. ampliado_________
  Aa = [A zeros(3,1);-C 0];
@@ -56,7 +56,7 @@ disp('Polos a lazo abierto: ')
 eig(A)                    %polos a lazo abierto, estos son los polos que puedo mover
 % d = [1 .0001 1000];     %sin discretizar
 % R = 1;
-d=[1 .1 100];
+d=[1 .1 100];  %como omega es del orden de 1000rpm y la corriente en amper la ponderacion asociada a omega tiene que ser chica respecto a la corriente.
 % d=[1 1 1];
 Q = diag(d);
 R = 1;
@@ -111,6 +111,7 @@ for i=1:Kmax
     uk(i) = -K*estados+G*ref(i);  %accion de control no linal
 %     uk(i) = -K*xo+G*ref(i); %sin Observador
 % {
+    %zona muerta en la accion de control lineal
     if(ul(1,i)<-zonaMuerta)
         ul(1,i)=ul(1,i)+zonaMuerta;
     elseif (ul(1,i)>= zonaMuerta)
@@ -118,7 +119,7 @@ for i=1:Kmax
     else
         ul(1,i)=0;
     end
-    
+    %zona muerta en la accion de control no lineal
     if(uk(i)<-zonaMuerta)
         uk(i)=uk(i)+zonaMuerta;
     elseif (uk(i)>= zonaMuerta)
@@ -127,8 +128,8 @@ for i=1:Kmax
         uk(i)=0;
     end
 %}
-    ul(1,i)= min(saturacion,max(-saturacion,ul(1,i))); 
-    uk(i)  = min(saturacion,max(-saturacion,uk(i)));
+    ul(1,i)= min(saturacion,max(-saturacion,ul(1,i))); %accion de control lineal
+    uk(i)  = min(saturacion,max(-saturacion,uk(i))); %accion de control no lineal
     %_________________sistema no lineal____________________________
     y_sal(i)=C*estados;
     for j=1:Ts/At
