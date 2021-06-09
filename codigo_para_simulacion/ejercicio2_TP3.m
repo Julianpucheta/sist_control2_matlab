@@ -1,6 +1,6 @@
 clc;clear all;%close all;
 Ts=.1;T=3; At=1e-3; Kmax=T/At; tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
-a=0.05;b=5;c=100;w=3;hInc=-500;hRef=100;fiRef=0;
+a=0.05;b=5;c=100;w=3;hInc=-500;hRef=100;fiRef=0;zonaMuerta=0.5;
 Ac=[-a a 0 0;
     0 0 1 0;
     w^2 -w^2 0 0;
@@ -21,6 +21,9 @@ sys_d=c2d(sys_c,Ts,'zoh');
 A = sys_d.A;
 B = sys_d.B;
 %________Construccion del sist. ampliado_________
+%Nota: podria no tener en cuenta toda la matriz C sino directamente la que
+%variable quiero llevar a otra referencia ya que no puedo llevar las 2 a 
+%distintas referencias. 
 nVar=6;                  %numero de variables de estados
 [rA,cA]=size(A);
 [rC,cC]=size(C);
@@ -32,7 +35,6 @@ for i=1:nVar-1
 end
 % Ma = [Ba Aa*Ba Aa^2*Ba Aa^3*Ba Aa^4*Ba]; %al agregar otro integrador(variable de estado) ahora el n = 5
 rank(Ma)%rank(ctrb(Aa,Ba));
-%Consultar sobre el rango que no es 6!!!!
 %{
 polyCaracDeA = poly(Aa);                                 %polinomio caracteristico de A
 Wa = [polyCaracDeA(5) polyCaracDeA(4) polyCaracDeA(3) polyCaracDeA(2) 1;
@@ -57,10 +59,11 @@ Ka=K(1:end-1);
 % K = lqr(A,B,Q,R)      %directamente por matlab
 %}
 %_________Controlador por LQR Discreto_____________________________________
+% d=[1 1e8 1e10 1e2 .01 .9];  %Ts=.01
 d=[1 1e8 1e7 100 .001 .9];  %Ts=.1
 % d=[1 1e8 1e7 100 .01 .01]; %Ts=1
 Q = diag(d);
-R = 1;
+R = .1;
 [K,P] = dlqr(Aa,Ba,Q,R);
 KI=-K(end);
 Ka=K(1:end-1);
@@ -131,13 +134,26 @@ for i=1:Kmax
     %_________Funcional de costo______________________________
 %     J(i+1) = J(i) + (estados'*Q*estados + u(i)'*R*u(i))*At; %no se emplea C'*Q*C por que solo tendria en cuenta un estado ya que C aca es [1 0 0 0]
 %     cambiar en tiempo discreto!!!
+    %zona muerta en la accion de control lineal
+% {
+    if(ul(i)<-zonaMuerta)
+        ul(i)=ul(i)+zonaMuerta;
+    elseif (ul(i)>= zonaMuerta)
+        ul(i)=ul(i)-zonaMuerta;
+    else
+        ul(i)=0;
+    end
+    %zona muerta en la accion de control no lineal
+    if(uk(i)<-zonaMuerta)
+        uk(i)=uk(i)+zonaMuerta;
+    elseif (uk(i)>= zonaMuerta)
+        uk(i)=uk(i)-zonaMuerta;
+    else
+        uk(i)=0;
+    end
+%}
     uk(i)=min(1,max(-1,uk(i)));
     ul(i)=min(1,max(-1,ul(i)));
-%     if(uk(i)>1)
-%         uk(i)=1;
-%     elseif(uk(i)<-1)
-%         uk(i)=-1;
-%     end
     %_________Sistema no lineal_______________________________
     for j=1:Ts/At
         u(jj)=uk(i);
@@ -162,7 +178,8 @@ for i=1:Kmax
    %_________________observador discreto___________________________________
     xol         = A*(xol-Xop)+B*ul(i)+Ko'*(Yl- C * xol);
 end
-ul(i+1)=ul(i);u(jj)=u(jj-1);
+ul(i+1)=ul(i);uk(i+1)=uk(i);
+u(jj)=u(jj-1);
 % J(i+1)=J(i);V(i+1)=V(i);
 ref(i+1) = ref(i);
 figure(1)

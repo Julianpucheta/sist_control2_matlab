@@ -2,23 +2,24 @@
 clc;clear all;%close all;
 T=80; At=1e-4; Kmax=T/At; t=linspace(0,T,Kmax);
 m=0.1;F=0.1;long=0.6;g=9.8;M=0.5;dRef=10;
+
+% A =[ 0 1 0 0;
+%     0 -F/M -(g*m)/M 0;
+%     0 0 0 1;
+%     0 F/(M*long) g*(M+m)/(M*long) 0]
+% B =[0;
+%    1/M;
+%    0;
+%    -1/(M*long)]
 %________equilibrio estable_______________________________________ 
-A =[ 0 1 0 0;
-    0 -F/M -(g*m)/M 0;
-    0 0 0 1;
-    0 F/(M*long) g*(M+m)/(M*long) 0]
-B =[0;
-   1/M;
-   0;
-   -1/(M*long)]
-% A=[ 0 1 0 0;
-%      0 -F/M -(g*m)/M 0;
-%      0 0 0 1;
-%      0 -F/(M*long) -(g*(M+m)/(M*long)) 0]
-% B=[ 0;
-%      1/M;
-%      0;
-%      1/(M*long)]
+A=[ 0 1 0 0;
+     0 -F/M -(g*m)/M 0;
+     0 0 0 1;
+     0 -F/(M*long) -(g*(M+m)/(M*long)) 0];
+B=[ 0;
+     1/M;
+     0;
+     1/(M*long)];
 C = [1 0 0 0];             %salida posicion
 D = 0;  
 Sis_ve=ss(A,B,C,D);
@@ -67,7 +68,7 @@ Ro=.0001;
 disp('Polos del observador')
 eig(A-Ko*C)
 %__________Condiciones iniciales___________________________________
-angulo_inicial=0;
+angulo_inicial=pi;
 % angulo_inicial=0.7;               %angulo limite para el observador(inestable)
 % angulo_inicial=1.26;              %angulo limite, por encima el sistema no responde(inestable)
 d(1)=0;dp(1)=0;dp(1)=0;fi(1)=angulo_inicial;fip(1)=0;dpp=0;fipp=0;u(1)=0;epsilon(1)=0;
@@ -86,17 +87,17 @@ for i=1:Kmax-1
     %__________accion de control____________________________________
     epsilon_p    = dRef - C * estados;
     epsilon(i+1) = epsilon(i)  + epsilon_p*At;
-%     u(i)         = -Ka*estados + KI*epsilon(i+1); %sin observador
-    u(i)         = -Ka*xo + KI*epsilon(i+1); %observador
+    u(i)         = -Ka*estados + KI*epsilon(i+1); %sin observador
+%     u(i)         = -Ka*xo + KI*epsilon(i+1); %observador
     %_________funcional de costo____________________________________
 %     J(i+1) = J(i) + ([estados' epsilon(i)]*Q*[estados; epsilon(i)] + u(i)'*R*u(i))*At; %no se emplea C'*Q*C por que solo tendria en cuenta un estado ya que C aca es [1 0 0 0]
     %_________sistema no lineal_____________________________________
-    dpp      = (long*m*sin(fi(i))*fip(i)^2+ u(i) - F * dp(i) - fipp * long * m * cos(fi(i)))/(M+m);
-    fipp     = (-dpp * cos(fi(i))+g*sin(fi(i)))*(1/long);
-    dp(i+1)  = dp(i)   + dpp *At;
-    d(i+1)   = d(i)    + dp(i)*At;
-    fip(i+1) = fip(i)  + fipp*At;
-    fi(i+1)  = fi(i)   + fip(i)*At;
+%     dpp      = (long*m*sin(fi(i))*fip(i)^2+ u(i) - F * dp(i) - fipp * long * m * cos(fi(i)))/(M+m);
+%     fipp     = (-dpp * cos(fi(i))+g*sin(fi(i)))*(1/long);
+%     dp(i+1)  = dp(i)   + dpp *At;
+%     d(i+1)   = d(i)    + dp(i)*At;
+%     fip(i+1) = fip(i)  + fipp*At;
+%     fi(i+1)  = fi(i)   + fip(i)*At;
 %     _________Cambio del valor de la masa___________________________
 %     if (9.99 < d(i) && flag)
 %         if(dp(i)<1e-8)
@@ -109,12 +110,12 @@ for i=1:Kmax-1
 %         end
 %     end
     %_________sistema lineal________________________________________
-%       xp        = A*(x-Xop)+B*u(i);
-%       x         = x+xp*At;
-%       d(i+1)     = x(1);
-%       dp(i+1)    = x(2);
-%       fi(i+1)    = x(3);
-%       fip(i+1)   = x(4);
+      xp        = A*(x-Xop)+B*u(i);
+      x         = x+xp*At;
+      d(i+1)     = x(1);
+      dp(i+1)    = x(2);
+      fi(i+1)    = x(3);
+      fip(i+1)   = x(4);
      %________observador____________________________________________
     y_sal_o(i) = C * xo;  %si se tiene mas de una salida a medir en el observador Ko debe ser un controlador para los 2 estados a medir
     y_sal(i)   = C * estados;
