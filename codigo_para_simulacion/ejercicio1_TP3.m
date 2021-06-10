@@ -1,10 +1,10 @@
 clc;clear all;%close all;
 %_________Tiempos__________________________________
-T=.7;At=1e-6;Ts=1e-5;Kmax=T/At;
+T=.6;At=1e-6;Ts=1e-5;Kmax=T/At;
 tl=linspace(0,T,Kmax+1);t=linspace(0,T,Kmax*(Ts/At)+1);
 %_________Variables________________________________
 Laa=366e-6;J=5e-9;Ra=55.6;Bm=0;Ki=6.49e-3;Km=6.53e-3;Va=12;
-TlRef=1.15e-5;
+TlRef=0;%1.15e-5;
 thetaRef=pi/2;
 zonaMuerta=1;
 saturacion=20;
@@ -17,7 +17,7 @@ Ac = [-Ra/Laa -Km/Laa 0;
 %     0];
 Bc = [1/Laa 0;
       0   -1/J;
-      0     0]; %considerando el torque
+      0     0];              %considerando el torque
 C = [0 0 1];                 %salida posicion
 D = [0 0];                
 % Baux=B(:,1);               
@@ -110,7 +110,7 @@ for i=1:Kmax
 %     ul(:,i) = [-K*xol+G*ref(i);Tl]; %con Observador
     uk(i) = -K*estados+G*ref(i);  %accion de control no linal
 %     uk(i) = -K*xo+G*ref(i); %sin Observador
-% {
+%{
     %zona muerta en la accion de control lineal
     if(ul(1,i)<-zonaMuerta)
         ul(1,i)=ul(1,i)+zonaMuerta;
