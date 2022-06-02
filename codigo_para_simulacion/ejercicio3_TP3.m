@@ -85,7 +85,7 @@ jj=1;
 flag=1;
 ii=0;
 kk=0;          %lleva la cuenta del tiempo que comprueba si llego al regimen
-tslim=3000*At; %tiempò limite en caso de no llegar a regimen.
+tslim=3000*At; %tiempÃ² limite en caso de no llegar a regimen.
 ts=5*At; %tiempo para decidir si dp esta cerca de cero y asi confirmar que llego a la referencia de 10
 dplim=1e-4;
 for i=1:Kmax
@@ -95,8 +95,8 @@ for i=1:Kmax
     %_________Accion de control para modelo no lineal______________________
     Y = C * estados;
     e1(i+1)    = e1(i) + dRef - Y(1);
-    uk(i) = -K*[estados;e1(i+1)]; %accion de control lineal con estados ampliados
-%     uk(i) = -K*[xo+Xop;e1(i+1)]; %con observador
+    uk(i) = -K*[estados-Xop;e1(i+1)]; %accion de control lineal con estados ampliados
+%     uk(i) = -K*[xo-Xop;e1(i+1)]; %con observador
     %_________Funcional de costo___________________________________________
 %     J(i+1) = J(i) + (estados'*Q*estados + u(i)'*R*u(i))*At; %no se emplea C'*Q*C por que solo tendria en cuenta un estado ya que C aca es [1 0 0 0]
 %     cambiar en tiempo discreto!!!
@@ -200,7 +200,7 @@ plot(t,d);hold on;
 % plot(tl,dl,color);hold on;
 plot(tl,ref,'r');hold on;
 grid on;
-title('Posición carro, \delta');
+title('PosiciÃ³n carro, \delta');
 subplot(3,2,4);
 plot(t,dp);hold on;
 % plot(tl,dpl,color);hold on;
@@ -210,7 +210,7 @@ subplot(3,1,3);
 plot(t,u);hold on;
 % plot(tl,ul);hold on;
 grid on;
-title('Acción de control');xlabel('Tiempo en Seg.');hold on;
+title('AcciÃ³n de control');xlabel('Tiempo en Seg.');hold on;
 %_________________Plano de fases___________________________________________
 figure(2)
 subplot(2,2,1:2);
